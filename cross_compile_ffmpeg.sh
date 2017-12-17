@@ -192,9 +192,14 @@ download_gcc_build_script() {
     chmod u+x $zeranoe_script_name
 }
 
+get_cross_compiler_bin_path() {
+  echo $(dirname $(which x86_64-w64-mingw32-gcc))
+}
+
 install_cross_compiler() {
-  local win32_gcc="cross_compilers/mingw-w64-i686/bin/i686-w64-mingw32-gcc"
-  local win64_gcc="cross_compilers/mingw-w64-x86_64/bin/x86_64-w64-mingw32-gcc"
+  local win32_gcc_dir=$(get_cross_compiler_bin_path)
+  local win32_gcc="$win32_gcc_dir/i686-w64-mingw32-gcc"
+  local win64_gcc="$win32_gcc_dir/x86_64-w64-mingw32-gcc"
   if [[ -f $win32_gcc && -f $win64_gcc ]]; then
    echo "MinGW-w64 compilers both already installed, not re-installing..."
    if [[ -z $compiler_flavors ]]; then
@@ -207,9 +212,6 @@ install_cross_compiler() {
   if [[ -z $compiler_flavors ]]; then
     pick_compiler_flavors
   fi
-
-  mkdir -p cross_compilers
-  cd cross_compilers
 
     unset CFLAGS # don't want these "windows target" settings used the compiler itself since it creates executables to run on the local box (we have a parameter allowing them to set them for the script "all builds" basically)
     # pthreads version to avoid having to use cvs for it
@@ -241,7 +243,7 @@ install_cross_compiler() {
       fi
     fi
 
-    # rm -f build.log # left over stuff... # sometimes useful...
+    rm -f build.log # left over stuff...
     reset_cflags
   cd ..
   echo "Done building (or already built) MinGW-w64 cross-compiler(s) successfully..."
@@ -477,7 +479,7 @@ download_and_unpack_file() {
 
 generic_configure() {
   local extra_configure_options="$1"
-  do_configure "--host=$host_target --prefix=$mingw_w64_x86_64_prefix --disable-shared --enable-static $extra_configure_options"
+  do_configure "--host=$host_target --prefix=$mingw_w64_x86_64_prefix --disable-shared --enable-static CPPFLAGS=-I$mingw_w64_x86_64_prefix/include LDFLAGS=-L$mingw_w64_x86_64_prefix/lib $extra_configure_options"
 }
 
 # params: url, optional "english name it will unpack to"
@@ -1770,6 +1772,8 @@ build_ffmpeg() {
       config_options+=" --disable-libgme"
     fi
     config_options+=" $extra_postpend_configure_options"
+    config_options+=" --extra-cflags=-I$mingw_w64_x86_64_prefix/include"
+    config_options+=" --extra-ldflags=-L$mingw_w64_x86_64_prefix/lib"
 
     do_configure "$config_options"
     rm -f */*.a */*.dll *.exe # just in case some dependency library has changed, force it to re-link even if the ffmpeg source hasn't changed...
@@ -2115,8 +2119,8 @@ if [[ $compiler_flavors == "multi" || $compiler_flavors == "win32" ]]; then
   echo
   echo "Starting 32-bit builds..."
   host_target='i686-w64-mingw32'
-  mingw_w64_x86_64_prefix="$cur_dir/cross_compilers/mingw-w64-i686/$host_target"
-  mingw_bin_path="$cur_dir/cross_compilers/mingw-w64-i686/bin"
+  mingw_bin_path=$(get_cross_compiler_bin_path)
+  mingw_w64_x86_64_prefix="$mingw_bin_path/mingw-w64-i686/$host_target"
   export PKG_CONFIG_PATH="$mingw_w64_x86_64_prefix/lib/pkgconfig"
   export PATH="$mingw_bin_path:$original_path"
   bits_target=32
@@ -2133,8 +2137,8 @@ if [[ $compiler_flavors == "multi" || $compiler_flavors == "win64" ]]; then
   echo
   echo "**************Starting 64-bit builds..." # make it have a bit easier to you can see when 32 bit is done
   host_target='x86_64-w64-mingw32'
-  mingw_w64_x86_64_prefix="$cur_dir/cross_compilers/mingw-w64-x86_64/$host_target"
-  mingw_bin_path="$cur_dir/cross_compilers/mingw-w64-x86_64/bin"
+  mingw_bin_path=$(get_cross_compiler_bin_path)
+  mingw_w64_x86_64_prefix="$mingw_bin_path/mingw-w64-x86_64/$host_target"
   export PKG_CONFIG_PATH="$mingw_w64_x86_64_prefix/lib/pkgconfig"
   export PATH="$mingw_bin_path:$original_path"
   bits_target=64
