@@ -1242,6 +1242,7 @@ build_libxavs() {
       sed -i.bak "/^install/s/:.*/:/;/install xavs/d" Makefile # Library only.
       sed -i.bak "s/O4/O2/" configure # Change CFLAGS.
     fi
+    sed -i '207s/.*/DEVNULL="\/dev\/null"/' configure # Changed configure script not to use NUL sink on mingw
     do_configure "--host=$host_target --prefix=$mingw_w64_x86_64_prefix --cross-prefix=$cross_prefix" # see https://github.com/rdp/ffmpeg-windows-build-helpers/issues/3
     do_make_and_make_install "$make_prefix_options"
     rm -f NUL # cygwin causes windows explorer to not be able to delete this folder if it has this oddly named file in it...
