@@ -318,6 +318,7 @@ do_git_checkout() {
     git clean -f # Throw away local changes; 'already_*' and bak-files for instance.
   else
     echo "got no code changes, not forcing reconfigure for that..."
+    git clean -f # Throw away local changes; 'already_*' and bak-files for instance.
   fi
   cd ..
 }
@@ -526,6 +527,17 @@ gen_ld_script() {
   fi
 }
 
+build_srt() {
+  do_git_checkout https://github.com/Haivision/srt.git srt_git v1.3.4 # OMG, this version build 1.4.4, 1.3.0 not
+  cd srt_git
+    if [[ ! -f Makefile.bak ]]; then # Change CFLAGS.
+      sed -i.bak "s/-O3/-O2/" Makefile
+    fi
+    do_configure " --cmake_verbose_makefile=1 --cmake_cxx_compiler_works=1 --cmake_c_compiler_works=1 --enable-apps=OFF --enable-c++-deps --enable-shared=OFF --cmake_c_compiler=i686-w64-mingw32-gcc --cmake_cxx_compiler=i686-w64-mingw32-g++ --cmake_system_name=Windows --enable-shared=OFF --enable-static=ON --enable_monotonic_clock=OFF --prefix=$mingw_w64_x86_64_prefix --enable_stdcxx_sync=ON --enable_encryption=OFF"
+    do_make_and_make_install "$make_prefix_options"
+  cd ..
+}
+
 build_dlfcn() {
   do_git_checkout https://github.com/dlfcn-win32/dlfcn-win32.git
   cd dlfcn-win32_git
@@ -539,15 +551,15 @@ build_dlfcn() {
 }
 
 build_bzip2() {
-  download_and_unpack_file http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
-  cd bzip2-1.0.6
-    apply_patch file://$patch_dir/bzip2-1.0.6_brokenstuff.diff
+  download_and_unpack_file http://fossies.org/linux/misc/bzip2-1.0.8.tar.gz
+  cd bzip2-1.0.8
+    #apply_patch file://$patch_dir/bzip2-1.0.8_brokenstuff.diff
     if [[ ! -f $mingw_w64_x86_64_prefix/lib/libbz2.a ]]; then # Library only.
       do_make "$make_prefix_options libbz2.a"
       install -m644 bzlib.h $mingw_w64_x86_64_prefix/include/bzlib.h
       install -m644 libbz2.a $mingw_w64_x86_64_prefix/lib/libbz2.a
     else
-      echo "already made bzip2-1.0.6"
+      echo "already made bzip2-1.0.8"
     fi
   cd ..
 }
@@ -947,7 +959,7 @@ build_lame() {
 }
 
 build_twolame() {
-  do_git_checkout https://github.com/njh/twolame.git
+  do_git_checkout https://github.com/njh/twolame.git twolame_git main
   cd twolame_git
     if [[ ! -f Makefile.am.bak ]]; then # Library only.
       sed -i.bak "/^SUBDIRS/s/ frontend.*//" Makefile.am
@@ -974,7 +986,7 @@ build_libopencore() {
 }
 
 build_libilbc() {
-  do_git_checkout https://github.com/TimothyGu/libilbc.git
+  do_git_checkout https://github.com/TimothyGu/libilbc.git libilbc_git main
   cd libilbc_git
     if [[ ! -f Makefile.am.bak ]]; then # Library only.
       sed -i.bak "/dist_doc/,+3d" Makefile.am
@@ -1299,7 +1311,7 @@ build_libx265() {
       fi
     else
       echo "doing hg clone x265"
-      hg clone https://bitbucket.org/multicoreware/x265 $checkout_dir || exit 1
+      hg clone https://bitbucket.org/multicoreware/x265_git $checkout_dir || exit 1
       cd $checkout_dir
       old_hg_version=none-yet
     fi
@@ -1729,7 +1741,8 @@ build_ffmpeg() {
       init_options+=" --disable-schannel"
       # Fix WinXP incompatibility by disabling Microsoft's Secure Channel, because Windows XP doesn't support TLS 1.1 and 1.2, but with GnuTLS or OpenSSL it does. The main reason I started this journey!
     fi
-    config_options="$init_options --enable-fontconfig --enable-gmp --enable-gnutls --enable-libass --enable-libbluray --enable-libbs2b --enable-libcaca --enable-libflite --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libilbc --enable-libmodplug --enable-libmp3lame --enable-libmysofa --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libopus --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libzimg --enable-libzvbi"
+    config_options="$init_options --enable-libsrt "
+    #config_options="$init_options --enable-gmp --enable-gnutls --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libsrt --enable-libzvbi"
     # With the changes being made to 'configure' above and with '--pkg-config-flags=--static' there's no need anymore for '--extra-cflags=' and '--extra-libs='.
     if [[ ! -f configure.bak ]]; then # Changes being made to 'configure' are done with 'sed', because 'configure' gets updated a lot.
       sed -i "/enabled libtwolame/s/&&$/-DLIBTWOLAME_STATIC \&\& add_cppflags -DLIBTWOLAME_STATIC \&\&/;/enabled libmodplug/s/.*/& -DMODPLUG_STATIC \&\& add_cppflags -DMODPLUG_STATIC/;/enabled libcaca/s/.*/& -DCACA_STATIC \&\& add_cppflags -DCACA_STATIC/" configure # Add '-Dxxx_STATIC' to LibTwoLAME, LibModplug and Libcaca. FFmpeg should change this upstream, just like they did with libopenjpeg.
@@ -1738,7 +1751,8 @@ build_ffmpeg() {
     fi
     config_options+=" --extra-cflags=-DLIBTWOLAME_STATIC --extra-cflags=-DMODPLUG_STATIC --extra-cflags=-DCACA_STATIC" # if we ever do a git pull then it nukes the changes from above, so just use these for now :|
     if [[ $enable_gpl == 'y' ]]; then
-      config_options+=" --enable-gpl --enable-avisynth --enable-frei0r --enable-filter=frei0r --enable-librubberband --enable-libvidstab --enable-libx264 --enable-libx265 --enable-libxavs --enable-libxvid"
+       config_options+=" --enable-gpl --enable-libx264  --enable-libxavs --enable-libxvid"
+      #config_options+=" --enable-gpl --enable-avisynth --enable-frei0r --enable-filter=frei0r --enable-librubberband --enable-libvidstab --enable-libx264 --enable-libx265 --enable-libxavs --enable-libxvid"
     fi
     # other possibilities (you'd need to also uncomment the call to their build method):
     #   --enable-w32threads # [worse UDP than pthreads, so not using that]
@@ -1751,7 +1765,8 @@ build_ffmpeg() {
     if [[ $build_intel_qsv = y ]]; then
       config_options+=" --enable-libmfx" # [note, not windows xp friendly]
     fi
-    config_options+=" --enable-avresample" # guess this is some kind of libav specific thing (the FFmpeg fork) but L-Smash needs it so why not always build it :)
+    config_options+=" " # guess this is some kind of libav specific thing (the FFmpeg fork) but L-Smash needs it so why not always build it :)
+    #config_options+=" --enable-avresample" # guess this is some kind of libav specific thing (the FFmpeg fork) but L-Smash needs it so why not always build it :)
 
     for i in $CFLAGS; do
       config_options+=" --extra-cflags=$i" # --extra-cflags may not be needed here, but adds it to the final console output which I like for debugging purposes
@@ -1760,7 +1775,8 @@ build_ffmpeg() {
     config_options+=" $postpend_configure_opts"
 
     if [[ "$non_free" = "y" ]]; then
-      config_options+=" --enable-nonfree --enable-decklink --enable-libfdk-aac"
+      config_options+=" --enable-nonfree --enable-libfdk-aac"
+      #config_options+=" --enable-nonfree --enable-decklink --enable-libfdk-aac"
       # other possible options: --enable-openssl [unneeded since we use gnutls]
     fi
     #apply_patch file://$patch_dir/nvresize2.patch "-p1" # uncomment if you want to test nvresize filter [et al] http://ffmpeg.org/pipermail/ffmpeg-devel/2015-November/182781.html patch worked with 7ab37cae34b3845
@@ -1866,70 +1882,71 @@ find_all_build_exes() {
 
 build_dependencies() {
   build_dlfcn
-  build_bzip2 # Bzlib (bzip2) in FFmpeg is autodetected.
-  build_liblzma # Lzma in FFmpeg is autodetected. Uses dlfcn.
-  build_zlib # Zlib in FFmpeg is autodetected.
-  build_iconv # Iconv in FFmpeg is autodetected. Uses dlfcn.
-  build_sdl2 # Sdl2 in FFmpeg is autodetected. Needed to build FFPlay. Uses iconv and dlfcn.
+  #build_bzip2 # Bzlib (bzip2) in FFmpeg is autodetected.
+  #build_liblzma # Lzma in FFmpeg is autodetected. Uses dlfcn.
+  #build_zlib # Zlib in FFmpeg is autodetected.
+  #build_iconv # Iconv in FFmpeg is autodetected. Uses dlfcn.
+  #build_sdl2 # Sdl2 in FFmpeg is autodetected. Needed to build FFPlay. Uses iconv and dlfcn.
   if [[ $build_amd_amf = y ]]; then
     build_amd_amf_headers
   fi
   if [[ $build_intel_qsv = y ]]; then
     build_intel_quicksync_mfx
   fi
-  build_libzimg # Uses dlfcn.
-  build_libopenjpeg
-  #build_libjpeg_turbo # mplayer can use this, VLC qt might need it? [replaces libjpeg]
-  build_libpng # Needs zlib >= 1.0.4. Uses dlfcn.
-  build_libwebp # Uses dlfcn.
-  build_freetype # Uses zlib, bzip2, and libpng.
-  build_libxml2 # Uses zlib, liblzma, iconv and dlfcn.
-  build_fontconfig # Needs freetype and libxml >= 2.6. Uses iconv and dlfcn.
-  build_gmp # For rtmp support configure FFmpeg with '--enable-gmp'. Uses dlfcn.
-  build_libnettle # Needs gmp >= 3.0. Uses dlfcn.
-  build_gnutls # Needs nettle >= 3.1, hogweed (nettle) >= 3.1. Uses zlib and dlfcn.
+  #build_libzimg # Uses dlfcn.
+  #build_libopenjpeg
+  ##build_libjpeg_turbo # mplayer can use this, VLC qt might need it? [replaces libjpeg]
+  #build_libpng # Needs zlib >= 1.0.4. Uses dlfcn.
+  #build_libwebp # Uses dlfcn.
+  ##build_freetype # Uses zlib, bzip2, and libpng.
+  #build_libxml2 # Uses zlib, liblzma, iconv and dlfcn.
+  ##build_fontconfig # Needs freetype and libxml >= 2.6. Uses iconv and dlfcn.
+  #build_gmp # For rtmp support configure FFmpeg with '--enable-gmp'. Uses dlfcn.
+  ##build_libnettle # Needs gmp >= 3.0. Uses dlfcn.
+  #build_gnutls # Needs nettle >= 3.1, hogweed (nettle) >= 3.1. Uses zlib and dlfcn.
   #if [[ "$non_free" = "y" ]]; then
   #  build_openssl-1.0.2 # Nonfree alternative to GnuTLS. 'build_openssl-1.0.2 "dllonly"' to build shared libraries only.
   #  build_openssl-1.1.0 # Nonfree alternative to GnuTLS. Can't be used with LibRTMP. 'build_openssl-1.1.0 "dllonly"' to build shared libraries only.
   #fi
-  build_libogg # Uses dlfcn.
-  build_libvorbis # Needs libogg >= 1.0. Uses dlfcn.
-  build_libopus # Uses dlfcn.
-  build_libspeexdsp # Needs libogg for examples. Uses dlfcn.
-  build_libspeex # Uses libspeexdsp and dlfcn.
-  build_libtheora # Needs libogg >= 1.1. Needs libvorbis >= 1.0.1, sdl and libpng for test, programs and examples [disabled]. Uses dlfcn.
-  build_libsndfile "install-libgsm" # Needs libogg >= 1.1.3 and libvorbis >= 1.2.3 for external support [disabled]. Uses dlfcn. 'build_libsndfile "install-libgsm"' to install the included LibGSM 6.10.
-  build_lame # Uses dlfcn.
-  build_twolame # Uses libsndfile >= 1.0.0 and dlfcn.
-  build_fdk-aac # Uses dlfcn.
-  build_libopencore # Uses dlfcn.
-  build_libilbc # Uses dlfcn.
-  build_libmodplug # Uses dlfcn.
-  build_libgme
-  build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
-  build_libbs2b # Needs libsndfile. Uses dlfcn.
-  build_libsoxr
-  build_libflite
-  build_libsnappy # Uses zlib (only for unittests [disabled]) and dlfcn.
-  build_vamp_plugin # Needs libsndfile for 'vamp-simple-host.exe' [disabled].
-  build_fftw # Uses dlfcn.
-  build_libsamplerate # Needs libsndfile >= 1.0.6 and fftw >= 0.15.0 for tests. Uses dlfcn.
-  build_librubberband # Needs libsamplerate, libsndfile, fftw and vamp_plugin. 'configure' will fail otherwise. Eventhough librubberband doesn't necessarily need them (libsndfile only for 'rubberband.exe' and vamp_plugin only for "Vamp audio analysis plugin"). How to use the bundled libraries '-DUSE_SPEEX' and '-DUSE_KISSFFT'?
-  build_frei0r # Needs dlfcn.
-  build_vidstab
-  build_libmysofa # Needed for FFmpeg's SOFAlizer filter (https://ffmpeg.org/ffmpeg-filters.html#sofalizer). Uses dlfcn.
-  build_libcaca # Uses zlib and dlfcn.
+  #build_libogg # Uses dlfcn.
+  #build_libvorbis # Needs libogg >= 1.0. Uses dlfcn.
+  #build_libopus # Uses dlfcn.
+  #build_libspeexdsp # Needs libogg for examples. Uses dlfcn.
+  #build_libspeex # Uses libspeexdsp and dlfcn.
+  #build_libtheora # Needs libogg >= 1.1. Needs libvorbis >= 1.0.1, sdl and libpng for test, programs and examples [disabled]. Uses dlfcn.
+  #build_libsndfile "install-libgsm" # Needs libogg >= 1.1.3 and libvorbis >= 1.2.3 for external support [disabled]. Uses dlfcn. 'build_libsndfile "install-libgsm"' to install the included LibGSM 6.10.
+  #build_lame # Uses dlfcn.
+  #build_twolame # Uses libsndfile >= 1.0.0 and dlfcn.
+  #build_fdk-aac # Uses dlfcn.
+  #build_libopencore # Uses dlfcn.
+  ##build_libilbc # Uses dlfcn.
+  ##build_libmodplug # Uses dlfcn.
+  ##build_libgme
+  ##build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
+  ##build_libbs2b # Needs libsndfile. Uses dlfcn.
+  ##build_libsoxr
+  ##build_libflite
+  ##build_libsnappy # Uses zlib (only for unittests [disabled]) and dlfcn.
+  ##build_vamp_plugin # Needs libsndfile for 'vamp-simple-host.exe' [disabled].
+  ##build_fftw # Uses dlfcn.
+  ##build_libsamplerate # Needs libsndfile >= 1.0.6 and fftw >= 0.15.0 for tests. Uses dlfcn.
+  ##build_librubberband # Needs libsamplerate, libsndfile, fftw and vamp_plugin. 'configure' will fail otherwise. Eventhough librubberband doesn't necessarily need them (libsndfile only for 'rubberband.exe' and vamp_plugin only for "Vamp audio analysis plugin"). How to use the bundled libraries '-DUSE_SPEEX' and '-DUSE_KISSFFT'?
+  ##build_frei0r # Needs dlfcn.
+  ##build_vidstab
+  ##build_libmysofa # Needed for FFmpeg's SOFAlizer filter (https://ffmpeg.org/ffmpeg-filters.html#sofalizer). Uses dlfcn.
+  ##build_libcaca # Uses zlib and dlfcn.
   if [[ "$non_free" = "y" ]]; then
     build_libdecklink
   fi
-  build_zvbi # Uses iconv, libpng and dlfcn.
-  build_fribidi # Uses dlfcn.
-  build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
-  build_libxavs
-  build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
-  build_libvpx
-  build_libx265
-  build_libopenh264
+  #build_zvbi # Uses iconv, libpng and dlfcn.
+  ##build_fribidi # Uses dlfcn.
+  ##build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
+  #build_libxavs
+  #build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
+  #build_libvpx
+  ##build_libx265
+  #build_libopenh264
+  build_srt
   build_libx264 # at bottom as it might build a ffmpeg which needs all the above deps...
 }
 
