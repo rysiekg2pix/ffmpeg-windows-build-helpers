@@ -398,6 +398,8 @@ do_make_install() {
   fi
   local touch_name=$(get_small_touchfile_name already_ran_make_install "$make_install_options")
   if [ ! -f $touch_name ]; then
+    #echo "make installing $(pwd) as $ PATH=$mingw_bin_path:\$PATH make $make_install_options"
+    mkdir ../package
     echo "make installing $(pwd) as $ PATH=$mingw_bin_path:\$PATH make $make_install_options"
     nice make $make_install_options || exit 1
     touch $touch_name || exit 1
@@ -533,7 +535,8 @@ build_srt() {
     if [[ ! -f Makefile.bak ]]; then # Change CFLAGS.
       sed -i.bak "s/-O3/-O2/" Makefile
     fi
-    do_configure " --cmake_verbose_makefile=1 --cmake_cxx_compiler_works=1 --cmake_c_compiler_works=1 --enable-apps=OFF --enable-c++-deps --enable-shared=OFF --cmake_c_compiler=i686-w64-mingw32-gcc --cmake_cxx_compiler=i686-w64-mingw32-g++ --cmake_system_name=Windows --enable-shared=OFF --enable-static=ON --enable_monotonic_clock=OFF --prefix=$mingw_w64_x86_64_prefix --enable_stdcxx_sync=ON --enable_encryption=OFF"
+    do_configure " --cmake_verbose_makefile=1 --cmake_cxx_compiler_works=1 --cmake_c_compiler_works=1 --enable-apps=OFF --enable-c++-deps --enable-shared=OFF --cmake_c_compiler=x86_64-w64-mingw32-gcc --cmake_cxx_compiler=x86_64-w64-mingw32-g++ --cmake_system_name=Windows --enable-shared=OFF --enable-static=ON --enable_monotonic_clock=OFF --prefix=$mingw_w64_x86_64_prefix --enable_stdcxx_sync=ON --enable_encryption=OFF"
+    #do_configure " --cmake_verbose_makefile=1 --cmake_cxx_compiler_works=1 --cmake_c_compiler_works=1 --enable-apps=OFF --enable-c++-deps --enable-shared=OFF --cmake_c_compiler=i686-w64-mingw32-gcc --cmake_cxx_compiler=i686-w64-mingw32-g++ --cmake_system_name=Windows --enable-shared=OFF --enable-static=ON --enable_monotonic_clock=OFF --prefix=$mingw_w64_x86_64_prefix --enable_stdcxx_sync=ON --enable_encryption=OFF"
     do_make_and_make_install "$make_prefix_options"
   cd ..
 }
@@ -1721,7 +1724,8 @@ build_ffmpeg() {
   # can't mix and match --enable-static --enable-shared unfortunately, or the final executable seems to just use shared if the're both present
   if [[ $1 == "shared" ]]; then
     output_dir+="_shared"
-    postpend_configure_opts="--enable-shared --disable-static --prefix=$(pwd)/${output_dir}"
+    postpend_configure_opts="--enable-shared --disable-static --prefix=/home/rysiekg/prj/package "
+    #postpend_configure_opts="--enable-shared --disable-static --prefix=$(pwd)/${output_dir}"
   else
     postpend_configure_opts="--enable-static --disable-shared --prefix=$mingw_w64_x86_64_prefix"
   fi
@@ -1741,7 +1745,18 @@ build_ffmpeg() {
       init_options+=" --disable-schannel"
       # Fix WinXP incompatibility by disabling Microsoft's Secure Channel, because Windows XP doesn't support TLS 1.1 and 1.2, but with GnuTLS or OpenSSL it does. The main reason I started this journey!
     fi
-    config_options="$init_options --enable-libsrt "
+    config_options="$init_options --enable-libsrt --enable-protocol=SRT"
+    config_options+="--enable-protocol=srt"
+    config_options+="--enable-protocol=udp"
+    config_options+="--enable-protocol=tcp"
+    config_options+="--enable-protocol=file"
+    config_options+="--enable-protocol=crypto"
+    config_options+="--enable-protocol=rtp"
+    config_options+="--enable-protocol=data"
+    config_options+="--enable-protocol=rtp"
+    config_options+="--enable-protocol=rtp"
+    config_options+="--enable-protocol=mpegts"
+
     #config_options="$init_options --enable-gmp --enable-gnutls --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopenh264 --enable-libopenjpeg --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libsrt --enable-libzvbi"
     # With the changes being made to 'configure' above and with '--pkg-config-flags=--static' there's no need anymore for '--extra-cflags=' and '--extra-libs='.
     if [[ ! -f configure.bak ]]; then # Changes being made to 'configure' are done with 'sed', because 'configure' gets updated a lot.
